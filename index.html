@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+    /* =======================
+       BASE LAYOUT
+    ======================= */
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        max-width: 1000px;
+        margin: auto;
+    }
+
+    .header {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+    }
+
+    .header img {
+        max-width: 250px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    
+    .header-text {
+        flex: 1;
+    }
+
+    /* LANGUAGE TOGGLE */
+    .lang-toggle {
+        display: flex;
+        gap: 5px;
+        margin-left: auto;
+    }
+    .lang-toggle button {
+        background: #eee;
+        color: #333;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-weight: bold;
+        transition: all 0.2s;
+        min-width: 0;
+    }
+    .lang-toggle button.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    /* =======================
+       FORM INPUTS (FIXED)
+    ======================= */
+    input, select {
+        padding: 8px;
+        margin-bottom: 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    input[type=datetime-local] {
+        font-size: 0.85em;
+    }
+
+    button {
+        cursor: pointer;
+        font-family: inherit;
+    }
+
+    /* =======================
+       TABLE
+    ======================= */
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+    }
+
+    th {
+        background: #f4f4f4;
+    }
+
+    /* =======================
+       BUTTON TOOLBAR
+    ======================= */
+    .button-container {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    .button-container button {
+        flex: 1;
+        min-width: 0;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        padding: 7px 5px;
+        font-size: 12px;
+        color: white;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+    }
+
+    /* =======================
+       BUTTON COLORS
+    ======================= */
+    .add-btn { background-color: orange; }
+    .pdf-btn { background-color: #e53935; }
+    .excel-btn { background-color: #43a047; }
+
+    /* =======================
+       OTHER ELEMENTS
+    ======================= */
+    .totals {
+        font-weight: bold;
+        font-size: 18px;
+        margin-top: 15px;
+    }
+
+    .receipt-preview {
+        width: 60px;
+        cursor: pointer;
+    }
+
+    .delete-btn {
+        background: #c62828;
+        color: white;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 4px;
+    }
+
+    #receiptModal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    #receiptModal img {
+        max-width: 90%;
+        max-height: 90%;
+    }
+
+    .section {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 6px;
+        background: #fafafa;
+    }
+
+    .section h3 {
+        margin-top: 0;
+    }
+
+    .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    /* =======================
+       MOBILE RESPONSIVE TABLE
+    ======================= */
+    @media (max-width: 700px) {
+        table, thead, tbody, th, td, tr {
+            display: block;
+            width: 100%;
+        }
+
+        thead { display: none; }
+
+        tr {
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        td {
+            border: none;
+            padding: 6px 0;
+        }
+
+        td::before {
+            font-weight: bold;
+            display: block;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+   <img id="logo" alt="">
+ </div>
+    <div class="header-text">
+        <h1 data-i18n="app_title">MedevacMafia</h1>
+        <p data-i18n="app_subtitle">Multi-Currency Expense Tracker (CAD)</p>
+    </div>
+    <div class="lang-toggle">
+        <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+        <button id="btn-fr" onclick="setLang('fr')">FR</button>
+    </div>
+</div>
+
+<div class="section">
+    <h3 data-i18n="user_info">User Information</h3><input type="text" id="userName" placeholder="Enter user name" data-i18n-placeholder="user_name_ph">
+<span id="cookieEmoji"></span>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select id="userTitle" onchange="calculateDays()">
+            <option value="RN" data-i18n="opt_rn">RN</option>
+            <option value="RT" data-i18n="opt_rt">RT</option>
+            <option value="MD" data-i18n="opt_md">MD</option>
+            <option value="RN CANCELLED" data-i18n="opt_rn_canc">RN CANCELLED</option>
+            <option value="RT CANCELLED" data-i18n="opt_rt_canc">RT CANCELLED</option>
+            <option value="MD CANCELLED" data-i18n="opt_md_canc">MD CANCELLED</option>
+            <option value="N/A" data-i18n="opt_na">N/A</option>
+        </select>
+    </div>	
+</div>
+
+<div class="section">
+    <h3 data-i18n="trip_info">Trip Information</h3>
+    <div class="stack">
+        <input type="text" id="trip" placeholder="Trip Number" data-i18n-placeholder="trip_num_ph">
+        <input type="text" id="clientName" placeholder="Enter client name" data-i18n-placeholder="client_name_ph">
+        <label data-i18n="trip_start">Trip Start Date & Time</label>
+        <input type="datetime-local" id="tripStartDateTime" onchange="calculateDays()">
+        <label data-i18n="trip_end">Trip End Date & Time</label>
+        <input type="datetime-local" id="tripEndDateTime" onchange="calculateDays()">
+        <label data-i18n="calc_days">Calculated Days</label>
+        <input type="number" id="numDaysDisplay" readonly>
+    </div>
+</div>
+
+<div class="section">
+    <h3 data-i18n="expense_info">Expense Information</h3>
+    <label data-i18n="expense_date">Expense date</label>
+    <input type="date" id="date" placeholder="Enter date" data-i18n-placeholder="expense_date_ph">
+    <input type="text" id="desc" placeholder="Description" data-i18n-placeholder="desc_ph">
+    <input type="number" id="amount" placeholder="Amount" step="0.01" data-i18n-placeholder="amount_ph">
+    <select id="currency">
+        <option value="CAD">CAD</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="MXN">MXN</option>
+        <option value="CZK">CZK</option>
+        <option value="JPY">JPY</option>
+        <option value="AUD">AUD</option>
+        <option value="CHF">CHF</option>
+        <option value="INR">INR</option>
+        <option value="COP">COP</option>
+        <option value="DOP">DOP</option>
+        <option value="TND">TND</option>
+        <option value="PEN">PEN</option>
+    </select>
+    <input type="file" id="receipt" accept="image/*;capture=camera">
+</div>
+
+<div class="button-container">
+    <button class="add-btn" onclick="addExpense()" data-i18n="add_btn">Add Expense</button>
+    <button class="pdf-btn" onclick="exportToPDF()" data-i18n="pdf_btn">Export to PDF</button>
+    <button class="excel-btn" onclick="exportToExcel()" data-i18n="excel_btn">Export to Excel</button>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th data-i18n="th_trip">Trip #</th>
+            <th data-i18n="th_date">Expense Date</th>
+            <th data-i18n="th_desc">Description</th>
+            <th data-i18n="th_amount">Amount</th>
+            <th data-i18n="th_currency">Currency</th>
+            <th data-i18n="th_base_rate">Base Rate</th>
+            <th data-i18n="th_markup_rate">Rate with Markup</th>
+            <th data-i18n="th_amount_cad">Amount CAD</th>
+            <th data-i18n="th_receipt">Receipt</th>
+            <th data-i18n="th_action">Action</th>
+        </tr>
+    </thead>
+    <tbody id="expenseTable"></tbody>
+</table>
+
+<div class="totals" id="totalExpenses">Total Expenses in CAD: $0.00</div>
+<div class="totals" id="daysTotal">Days Total: $0.00</div>
+<div class="totals" id="grandTotal">Grand Total in CAD: $0.00</div>
+
+<div id="receiptModal" onclick="closeReceipt()">
+    <img id="receiptFull">
+</div>
+
+<footer style="text-align: center; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
+    <p data-i18n="footer_text">*by Spiros Konstas RN &copy;*</p>
+</footer>   
+
+<script>
+// ==========================================
+// TRANSLATION DICTIONARY
+// ==========================================
+const translations = {
+    en: {
+        app_title: "Medevac Mafia",
+        app_subtitle: "Multi-Currency Expense Tracker (CAD)",
+        user_info: "User Information",
+        user_name_ph: "Enter user name",
+        opt_rn: "RN", opt_rt: "RT", opt_md: "MD",
+        opt_rn_canc: "RN CANCELLED", opt_rt_canc: "RT CANCELLED", opt_md_canc: "MD CANCELLED", opt_na: "N/A",
+        trip_info: "Trip Information",
+        trip_num_ph: "Trip Number",
+        client_name_ph: "Enter client name",
+        trip_start: "Trip Start Date & Time",
+        trip_end: "Trip End Date & Time",
+        calc_days: "Calculated Days",
+        expense_info: "Expense Information",
+        expense_date: "Expense date",
+        expense_date_ph: "Enter date",
+        desc_ph: "Description",
+        amount_ph: "Amount",
+        add_btn: "Add Expense",
+        pdf_btn: "Export to PDF",
+        excel_btn: "Export to Excel",
+        th_trip: "Trip #", th_date: "Expense Date", th_desc: "Description", th_amount: "Amount",
+        th_currency: "Currency", th_base_rate: "Base Rate", th_markup_rate: "Rate with Markup",
+        th_amount_cad: "Amount CAD", th_receipt: "Receipt", th_action: "Action",
+        tot_expenses: "Total Expenses in CAD: $",
+        days_total: "Worked Days Total in CAD: $",
+        days_total_calc: "Days Total ({days} days @ ${rate} CAD/day): $",
+        grand_total: "Grand Total in CAD: $",
+        alert_trip_dates: "Trip End Date/Time cannot be earlier than Trip Start Date/Time. Both fields will be cleared so you can start over.",
+        alert_rate_unavail: "Rate unavailable for {currency}. Using 1 as fallback.",
+        alert_fill_fields: "Please fill all fields.",
+        alert_exp_date: "Expense date must be between the trip start date and trip end date.",
+        alert_receipt: "A receipt attachment is required for every expense entry.",
+        btn_delete: "Delete",
+        confirm_delete: "Are you sure you want to delete this expense?",
+        pdf_exp_report: "Expense Report", pdf_user_name: "User Name: ", pdf_trip: "Trip #: ",
+        pdf_client: "Client: ", pdf_trip_start: "Trip Start: ", pdf_trip_end: "Trip End: ",
+        pdf_exp_date: "Expense Date: ", pdf_desc: "Description: ", pdf_amount: "Amount: ",
+        pdf_base_rate: "Base Rate: ", pdf_rate_markup: "Rate w/ Markup: ", pdf_amount_cad: "Amount CAD: ",
+        pdf_tot_exp: "Total Expenses CAD: $", pdf_days_tot: "Days Total ({days} days @ ${rate} CAD/day): $",
+        pdf_grand_tot: "Grand Total CAD: $",
+        alert_future_dates: "Future dates and times are not allowed. Resetting to current date/time.",
+        excel_sheet1: "Expense Summary", excel_sheet2: "Receipts", excel_receipt: "Receipt",
+        footer_text: "*by Spiros Konstas RN ©*"
+    },
+    fr: {
+        app_title: "Medevac Mafia",
+        app_subtitle: "Suivi des dépenses multidevises (CAD)",
+        user_info: "Informations sur l'utilisateur",
+        user_name_ph: "Entrez le nom d'utilisateur",
+        opt_rn: "Infirmier(ère) (RN)", opt_rt: "Inhalo (RT)", opt_md: "Médecin (MD)",
+        opt_rn_canc: "RN ANNULÉ", opt_rt_canc: "RT ANNULÉ", opt_md_canc: "MD ANNULÉ", opt_na: "N/A",
+        trip_info: "Informations sur le voyage",
+        trip_num_ph: "Numéro de voyage",
+        client_name_ph: "Entrez le nom du client",
+        trip_start: "Date et heure de début du voyage",
+        trip_end: "Date et heure de fin du voyage",
+        calc_days: "Jours calculés",
+        expense_info: "Informations sur la dépense",
+        expense_date: "Date de la dépense",
+        expense_date_ph: "Entrez la date",
+        desc_ph: "Description",
+        amount_ph: "Montant",
+        add_btn: "Ajouter dépense",
+        pdf_btn: "Exporter PDF",
+        excel_btn: "Exporter Excel",
+        th_trip: "Voyage #", th_date: "Date de dépense", th_desc: "Description", th_amount: "Montant",
+        th_currency: "Devise", th_base_rate: "Taux de base", th_markup_rate: "Taux avec marge",
+        th_amount_cad: "Montant CAD", th_receipt: "Reçu", th_action: "Action",
+        tot_expenses: "Total des dépenses en CAD : $",
+        days_total: "Total des jours Travaillés en CAD : $",
+        days_total_calc: "Total des jours ({days} jours @ {rate}$ CAD/jour) : $",
+        grand_total: "Total général en CAD : $",
+        alert_trip_dates: "La date/heure de fin ne peut pas être antérieure à la date/heure de début. Les deux champs seront effacés.",
+        alert_rate_unavail: "Taux indisponible pour {currency}. Utilisation de 1 par défaut.",
+        alert_fill_fields: "Veuillez remplir tous les champs.",
+        alert_exp_date: "La date de la dépense doit être comprise entre le début et la fin du voyage.",
+        alert_receipt: "Un reçu en pièce jointe est requis pour chaque dépense.",
+        btn_delete: "Supprimer",
+        confirm_delete: "Êtes-vous sûr de vouloir supprimer cette dépense ?",
+        pdf_exp_report: "Rapport de dépenses", pdf_user_name: "Nom d'utilisateur : ", pdf_trip: "Voyage # : ",
+        pdf_client: "Client : ", pdf_trip_start: "Début du voyage : ", pdf_trip_end: "Fin du voyage : ",
+        pdf_exp_date: "Date de la dépense : ", pdf_desc: "Description : ", pdf_amount: "Montant : ",
+        pdf_base_rate: "Taux de base : ", pdf_rate_markup: "Taux avec marge : ", pdf_amount_cad: "Montant CAD : ",
+        pdf_tot_exp: "Total des dépenses CAD : $", pdf_days_tot: "Total des jours ({days} jours @ {rate}$ CAD/jour) : $",
+        pdf_grand_tot: "Total général CAD : $",
+        alert_future_dates: "Les dates et heures futures ne sont pas autorisées. Réinitialisation à l'heure actuelle.",
+        excel_sheet1: "Résumé des dépenses", excel_sheet2: "Reçus", excel_receipt: "Reçu",
+        footer_text: "*par Spiros Konstas RN ©*"
+    }
+};
+
+let currentLang = 'en';
+
+function t(key) {
+    return translations[currentLang][key] || key;
+}
+
+function updateMobileTableCSS() {
+    let style = document.getElementById('mobile-table-lang');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'mobile-table-lang';
+        document.head.appendChild(style);
+    }
+    style.innerHTML = `
+        @media (max-width: 700px) {
+            td:nth-child(1)::before { content: "${t('th_trip')}"; }
+            td:nth-child(2)::before { content: "${t('th_date')}"; }
+            td:nth-child(3)::before { content: "${t('th_desc')}"; }
+            td:nth-child(4)::before { content: "${t('th_amount')}"; }
+            td:nth-child(5)::before { content: "${t('th_currency')}"; }
+            td:nth-child(6)::before { content: "${t('th_base_rate')}"; }
+            td:nth-child(7)::before { content: "${t('th_markup_rate')}"; }
+            td:nth-child(8)::before { content: "${t('th_amount_cad')}"; }
+            td:nth-child(9)::before { content: "${t('th_receipt')}"; }
+            td:nth-child(10)::before { content: "${t('th_action')}"; }
+        }
+    `;
+}
+
+function setLang(lang) {
+    currentLang = lang;
+    
+    // Toggle active button class
+    document.getElementById('btn-en').className = lang === 'en' ? 'active' : '';
+    document.getElementById('btn-fr').className = lang === 'fr' ? 'active' : '';
+
+    // Update static texts
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.innerText = t(el.getAttribute('data-i18n'));
+    });
+
+    // Update placeholders
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+
+    updateMobileTableCSS();
+    
+    // Re-render dynamic text dependent on JS
+    calculateDays(); 
+    renderTable(); 
+}
+
+// ==========================================
+// CORE LOGIC
+// ==========================================
+const FX_MARKUP = 1.035;
+let totalCAD = 0, totalDaysCAD = 0;
+let expenses = [], expenseImages = [];
+let currentTripNumber = sessionStorage.getItem("currentTripNumber") || "";
+
+function resizeImageForPDF(file, maxSize=1000){
+    return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                let w = img.width, h = img.height;
+                const scale = Math.min(maxSize/w, maxSize/h, 1);
+                w *= scale; h *= scale;
+                const canvas = document.createElement("canvas");
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL("image/jpeg", 0.8));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function getDailyRate(){
+    const title = document.getElementById("userTitle")?.value || "RN";
+    if(title === "MD") return 975;
+    if(title === "RT") return 750;
+	if(title === "RN CANCELLED") return 400;
+	if(title === "RT CANCELLED") return 375;
+	if(title === "MD CANCELLED") return 487.50;
+	if(title === "N/A") return 0;
+    return 800;
+}
+
+function updateExpenseDateLimits(){
+    const expenseDate = document.getElementById("date");
+    const startInput = document.getElementById("tripStartDateTime").value;
+    const endInput = document.getElementById("tripEndDateTime").value;
+    
+    expenseDate.min = startInput ? startInput.split("T")[0] : "";
+    expenseDate.max = endInput ? endInput.split("T")[0] : "";
+}
+
+function calculateDays(){
+    const startInputElem = document.getElementById("tripStartDateTime");
+    const endInputElem = document.getElementById("tripEndDateTime");
+    
+    if(!startInputElem.value || !endInputElem.value) {
+        updateExpenseDateLimits();
+        // Update daysTotal to $0.00 translated
+        document.getElementById("daysTotal").innerText = t('days_total') + "0.00";
+        return;
+    }
+
+    const startDate = new Date(startInputElem.value);
+    const endDate = new Date(endInputElem.value);
+
+    // Alert and clear fields if the end date is earlier than the start date
+    if(endDate.getTime() < startDate.getTime()){
+        alert(t('alert_trip_dates'));
+        
+        startInputElem.value = "";
+        endInputElem.value = "";
+        document.getElementById("numDaysDisplay").value = "";
+        
+        totalDaysCAD = 0;
+        document.getElementById("daysTotal").innerText = t('days_total') + "0.00";
+        updateGrandTotal();
+        updateExpenseDateLimits();
+        return;
+    }
+
+    const diffMs = endDate.getTime() - startDate.getTime();
+    let days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+
+    const userTitle = document.getElementById("userTitle").value;
+    if(userTitle.includes("CANCELLED")){
+        days = 1;
+    }
+    document.getElementById("numDaysDisplay").value = days;
+    const dailyRate = getDailyRate();
+    totalDaysCAD = days * dailyRate;
+    
+    let daysStr = t('days_total_calc').replace('{days}', days).replace('{rate}', dailyRate);
+    document.getElementById("daysTotal").innerText = daysStr + totalDaysCAD.toFixed(2);
+    
+    updateGrandTotal();
+    updateExpenseDateLimits();
+}
+
+function updateGrandTotal(){
+    document.getElementById("grandTotal").innerText = t('grand_total') + (totalCAD + totalDaysCAD).toFixed(2);
+}
+
+async function getRate(currency, date){
+    if(currency === "CAD") return 1;
+    const formattedDate = date ? new Date(date).toISOString().split("T")[0] : "";
+    try{
+        if(formattedDate){
+            const histRes = await fetch(`https://api.exchangerate.host/${formattedDate}?base=${currency}&symbols=CAD`);
+            const histData = await histRes.json();
+            if(histData && histData.rates && histData.rates.CAD) return histData.rates.CAD;
+        }
+    }catch(e){}
+    try{
+        const fallbackRes = await fetch("https://open.er-api.com/v6/latest/" + currency);
+        const fallbackData = await fallbackRes.json();
+        if(fallbackData && fallbackData.rates && fallbackData.rates.CAD) return fallbackData.rates.CAD;
+    }catch(e){}
+    alert(t('alert_rate_unavail').replace('{currency}', currency));
+    return 1;
+}
+
+function saveExpenses(){
+    sessionStorage.setItem("expenses", JSON.stringify(expenses));
+    sessionStorage.setItem("expenseImages", JSON.stringify(expenseImages));
+    sessionStorage.setItem("currentTripNumber", currentTripNumber);
+}
+
+function loadExpenses(){
+    const saved = sessionStorage.getItem("expenses");
+    const savedImages = sessionStorage.getItem("expenseImages");
+    if(saved){
+        expenses = JSON.parse(saved);
+        expenseImages = savedImages ? JSON.parse(savedImages) : [];
+        totalCAD = 0;
+        expenses.forEach((exp, i) => { addRow(i); totalCAD += exp.amountCAD; });
+        document.getElementById("totalExpenses").innerText = t('tot_expenses') + totalCAD.toFixed(2);
+        updateGrandTotal();
+    }
+}
+
+window.onload = () => {
+    setLang(currentLang);
+    loadExpenses();
+    document.getElementById("trip").value = currentTripNumber;
+};
+
+document.getElementById("trip").addEventListener("input", e => {
+    currentTripNumber = e.target.value.trim(); 
+    sessionStorage.setItem("currentTripNumber", currentTripNumber);
+});
+
+async function addExpense(){
+    const trip = document.getElementById("trip").value.trim() || currentTripNumber;
+    const date = document.getElementById("date").value;
+    const desc = document.getElementById("desc").value.trim();
+    const amount = parseFloat(document.getElementById("amount").value);
+    const currency = document.getElementById("currency").value;
+    const receiptFile = document.getElementById("receipt").files[0];
+    const tripStart = document.getElementById("tripStartDateTime").value;
+    const tripEnd = document.getElementById("tripEndDateTime").value;
+
+    if(!trip || !desc || !date || isNaN(amount)){
+        alert(t('alert_fill_fields')); 
+        return;
+    }
+
+    if(tripStart && tripEnd){
+        const expenseDate = new Date(date);
+        const startDate = new Date(tripStart.split("T")[0]);
+        const endDate = new Date(tripEnd.split("T")[0]);
+        if(expenseDate < startDate || expenseDate > endDate){
+            alert(t('alert_exp_date'));
+            return;
+        }
+    }
+
+    if(!receiptFile){
+        alert(t('alert_receipt')); 
+        return;
+    }
+
+    currentTripNumber = trip; 
+    sessionStorage.setItem("currentTripNumber", currentTripNumber);
+    const baseRate = await getRate(currency, date);
+
+    // Apply markup only if NOT CAD
+    const currentMarkup = (currency === "CAD") ? 1.0 : FX_MARKUP;
+    const rateWithMarkup = baseRate * currentMarkup;
+    const amountCAD = amount * rateWithMarkup;
+    
+    let receiptData = null; 
+    if(receiptFile) receiptData = await resizeImageForPDF(receiptFile);
+
+    expenses.push({trip, date, desc, amount, currency, baseRate, rateWithMarkup, amountCAD, tripStart, tripEnd});
+    expenseImages.push(receiptData);
+    
+    addRow(expenses.length - 1);
+    totalCAD += amountCAD;
+    document.getElementById("totalExpenses").innerText = t('tot_expenses') + totalCAD.toFixed(2);
+    updateGrandTotal();
+    saveExpenses();
+    
+    document.getElementById("desc").value = ""; 
+    document.getElementById("amount").value = ""; 
+    document.getElementById("receipt").value = "";
+}
+
+function addRow(i) {
+    if (!expenses[i]) {
+        console.error("Invalid expense index:", i);
+        return;
+    }
+
+    const expense = expenses[i];
+    const tbody = document.getElementById("expenseTable");
+    const row = document.createElement("tr");
+
+    function addCell(text) {
+        const td = document.createElement("td");
+        td.textContent = text;
+        row.appendChild(td);
+    }
+
+    addCell(expense.trip);
+    addCell(expense.date);
+    addCell(expense.desc);
+    addCell(Number(expense.amount).toFixed(2));
+    addCell(expense.currency);
+    addCell(Number(expense.baseRate).toFixed(4));
+    addCell(Number(expense.rateWithMarkup).toFixed(4));
+    addCell(Number(expense.amountCAD).toFixed(2));
+
+    // Receipt image cell
+    const receiptCell = document.createElement("td");
+    if (expenseImages[i]) {
+        const img = document.createElement("img");
+        img.src = expenseImages[i];
+        img.className = "receipt-preview";
+        img.addEventListener("click", () => viewReceipt(i));
+        receiptCell.appendChild(img);
+    }
+    row.appendChild(receiptCell);
+
+    // Delete button cell
+    const deleteCell = document.createElement("td");
+    const deleteButton = document.createElement("button");
+
+    deleteButton.className = "delete-btn";
+    deleteButton.textContent = t('btn_delete');
+    deleteButton.addEventListener("click", () => deleteExpense(i));
+
+    deleteCell.appendChild(deleteButton);
+    row.appendChild(deleteCell);
+
+    tbody.appendChild(row);
+}
+
+window.deleteExpense = function(i) {
+    const confirmed = confirm(t('confirm_delete'));
+    if (!confirmed) return;
+
+    totalCAD -= expenses[i].amountCAD;
+    expenses.splice(i, 1); 
+    expenseImages.splice(i, 1);
+    saveExpenses(); 
+    renderTable();
+};
+
+function renderTable(){
+    const tbody = document.getElementById("expenseTable"); 
+    tbody.innerHTML = "";
+    totalCAD = 0; 
+    expenses.forEach((exp, i) => { 
+        addRow(i); 
+        totalCAD += exp.amountCAD; 
+    });
+    document.getElementById("totalExpenses").innerText = t('tot_expenses') + totalCAD.toFixed(2);
+    updateGrandTotal();
+}
+
+function viewReceipt(index){
+    document.getElementById("receiptFull").src = expenseImages[index]; 
+    document.getElementById("receiptModal").style.display = "flex";
+}
+
+function closeReceipt(){
+    document.getElementById("receiptModal").style.display = "none";
+}
+console.log("jsPDF:", window.jspdf);
+console.log("ExcelJS:", window.ExcelJS);
+async function exportToPDF(){
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Add Logo while preserving aspect ratio
+    try {
+        const logoImg = document.querySelector('.header img');
+
+        if (logoImg && logoImg.src && logoImg.src.startsWith("data:image")) {
+            const img = new Image();
+            img.src = logoImg.src;
+            await new Promise(resolve => img.onload = resolve);
+
+            const maxWidth = 50;
+            const maxHeight = 50;
+            let width = img.width;
+            let height = img.height;
+            const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+
+            width *= scale;
+            height *= scale;
+
+            const format = logoImg.src.includes("image/png") ? "PNG" : "JPEG";
+
+            doc.addImage(logoImg.src, format, 10, 10, width, height);
+        }
+    } catch(e) {
+        console.warn("Could not load logo into PDF", e);
+    }
+
+    let y = 75;
+
+    doc.setFontSize(16);
+    doc.text(t('pdf_exp_report'), 10, y); y += 10;
+
+    const userName = document.getElementById("userName").value;
+    const userTitleSelect = document.getElementById("userTitle");
+    const userTitle = userTitleSelect.selectedOptions[0].text;
+    const client = document.getElementById("clientName").value;
+    const dailyRate = getDailyRate();
+    const trip = document.getElementById("trip").value;
+    const tripStart = document.getElementById("tripStartDateTime").value;
+    const tripEnd = document.getElementById("tripEndDateTime").value;
+    const daysCount = parseInt(document.getElementById("numDaysDisplay").value) || 0;
+
+    doc.setFontSize(12);
+    doc.text(t('pdf_user_name') + userName + " (" + userTitle + ")", 10, y); y += 6;
+    doc.text(t('pdf_trip') + trip, 10, y); y += 6;
+	doc.text(t('pdf_client') + client, 10, y); y += 6;
+
+    if(tripStart) { doc.text(t('pdf_trip_start') + tripStart.replace("T", " "), 10, y); y += 6; }
+    if(tripEnd)   { doc.text(t('pdf_trip_end') + tripEnd.replace("T", " "), 10, y); y += 10; }
+
+    for(let i=0; i<expenses.length; i++){
+        const exp = expenses[i];
+        doc.text(t('pdf_exp_date') + exp.date, 10, y); y += 6;
+        doc.text(t('pdf_desc') + exp.desc, 10, y); y += 6;
+        doc.text(t('pdf_amount') + exp.amount.toFixed(2) + " " + exp.currency, 10, y); y += 6;
+        doc.text(t('pdf_base_rate') + exp.baseRate.toFixed(4), 10, y); y += 6;
+        doc.text(t('pdf_rate_markup') + exp.rateWithMarkup.toFixed(4), 10, y); y += 6;
+        doc.text(t('pdf_amount_cad') + exp.amountCAD.toFixed(2), 10, y); y += 10;
+        if(y > 250){ doc.addPage(); y = 10; }
+    }
+
+    doc.text(t('pdf_tot_exp') + totalCAD.toFixed(2), 10, y); y += 6;
+    let daysStr = t('pdf_days_tot').replace('{days}', daysCount).replace('{rate}', dailyRate);
+    doc.text(daysStr + totalDaysCAD.toFixed(2), 10, y); y += 6;
+    doc.text(t('pdf_grand_tot') + (totalCAD + totalDaysCAD).toFixed(2), 10, y); y += 10;
+
+    for(let i=0; i<expenseImages.length; i++){
+        const imgData = expenseImages[i]; 
+        if(!imgData) continue;
+        const img = new Image(); 
+        img.src = imgData; 
+        await new Promise(r => img.onload = r);
+        const pageWidth = doc.internal.pageSize.getWidth() - 20;
+        const pageHeight = doc.internal.pageSize.getHeight() - 30;
+        let w = img.width, h = img.height;
+        const scale = Math.min(pageWidth / w, pageHeight / h, 1);
+        w *= scale; 
+        h *= scale;
+        const x = (doc.internal.pageSize.getWidth() - w)/2;
+        const yImg = (doc.internal.pageSize.getHeight() - h)/2;
+        doc.addPage(); 
+        doc.addImage(imgData, "JPEG", x, yImg, w, h);
+    }
+
+    const safeUserName = userName.trim().replace(/\s+/g, "_");
+const safeTrip = trip.trim().replace(/\s+/g, "_");
+
+const filename = `${safeUserName}_Trip_${safeTrip}_Expenses_Report.pdf`;
+
+const blob = doc.output("blob");
+const url = URL.createObjectURL(blob);
+
+const a = document.createElement("a");
+a.href = url;
+a.download = filename;
+document.body.appendChild(a);
+a.click();
+a.remove();
+
+setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportToExcel() {
+    const workbook = new ExcelJS.Workbook();
+
+    // ===============================
+    // Sheet 1 - Expense Summary
+    // ===============================
+    const summary = workbook.addWorksheet(t('excel_sheet1'));
+// ===============================
+// Add Logo to Summary Sheet
+// ===============================
+try {
+    const logoImg = document.querySelector('.header img');
+
+    if (logoImg && logoImg.src && logoImg.src.startsWith("data:image")) {
+        const img = new Image();
+        img.src = logoImg.src;
+        await new Promise(resolve => img.onload = resolve);
+
+        let width = img.width;
+        let height = img.height;
+
+        const scale = Math.min(150 / width, 150 / height, 1);
+
+        width *= scale;
+        height *= scale;
+
+        const logoId = workbook.addImage({
+            base64: logoImg.src,
+            extension: logoImg.src.includes("image/png") ? "png" : "jpeg"
+        });
+
+        summary.addImage(logoId, {
+            tl: { col: 0, row: 0 },
+            ext: { width: width, height: height }
+        });
+
+        summary.getRow(1).height = Math.max(30, height * 0.75);
+        summary.getRow(2).height = 30;
+        summary.getRow(3).height = 30;
+    }
+
+} catch (err) {
+    console.warn("Could not add logo to Excel:", err);
+}
+
+    summary.columns = [
+        { header: t('th_trip'), key: "trip", width: 15 },
+        { header: t('th_date'), key: "date", width: 15 },
+        { header: t('th_desc'), key: "desc", width: 30 },
+        { header: t('th_amount'), key: "amount", width: 12 },
+        { header: t('th_currency'), key: "currency", width: 12 },
+        { header: t('th_base_rate'), key: "baseRate", width: 12 },
+        { header: t('th_markup_rate'), key: "rateWithMarkup", width: 18 },
+        { header: t('th_amount_cad'), key: "amountCAD", width: 15 }
+    ];
+    summary.spliceRows(1, 0, []);
+
+    // ===============================
+    // Insert User Info in Header Area
+    // ===============================
+    const excelUserName = document.getElementById("userName").value || "";
+    const excelUserTitleSelect = document.getElementById("userTitle");
+    const excelUserTitle = excelUserTitleSelect && excelUserTitleSelect.selectedOptions[0] ? excelUserTitleSelect.selectedOptions[0].text : "";
+    const excelTripStart = document.getElementById("tripStartDateTime").value ? document.getElementById("tripStartDateTime").value.replace("T", " ") : "";
+    const excelTripEnd = document.getElementById("tripEndDateTime").value ? document.getElementById("tripEndDateTime").value.replace("T", " ") : "";
+
+    summary.mergeCells('C1:H1');
+    const headerCell = summary.getCell('C1');
+    headerCell.value = 
+        t('pdf_user_name') + excelUserName + " (" + excelUserTitle + ")\n" +
+        t('pdf_trip_start') + excelTripStart + "\n" +
+        t('pdf_trip_end') + excelTripEnd;
+    headerCell.alignment = { wrapText: true, vertical: 'center', horizontal: 'left' };
+    headerCell.font = { size: 12, bold: true };
+
+    expenses.forEach(exp => {
+        summary.addRow({
+            trip: exp.trip,
+            date: exp.date,
+            desc: exp.desc,
+            amount: exp.amount,
+            currency: exp.currency,
+            baseRate: exp.baseRate,
+            rateWithMarkup: exp.rateWithMarkup,
+            amountCAD: exp.amountCAD
+        });
+    });
+
+    // Add totals
+    summary.addRow([]);
+    summary.addRow([t('tot_expenses').replace(' $','').replace(' :$',''), totalCAD]);
+    summary.addRow([t('days_total').replace(' $','').replace(' :$',''), totalDaysCAD]);
+    summary.addRow([t('grand_total').replace(' $','').replace(' :$',''), totalCAD + totalDaysCAD]);
+
+    // ===============================
+    // Auto-adjust Column Widths
+    // ===============================
+    summary.columns.forEach(column => {
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+            // Skip the first row so the merged header (User Info) doesn't stretch Column C infinitely
+            if (rowNumber === 1) return; 
+            
+            let cellValue = cell.value ? cell.value.toString() : "";
+            
+            // If text has newlines, calculate the longest line
+            let lines = cellValue.split('\n');
+            let maxLineLength = Math.max(...lines.map(line => line.length));
+            
+            if (maxLineLength > maxLength) {
+                maxLength = maxLineLength;
+            }
+        });
+        
+        // Give it a minimum width of 10 and add a buffer of 2 characters so text isn't pressed against the edge
+        column.width = maxLength < 10 ? 10 : maxLength + 2;
+    });
+
+    // ===============================
+// Sheet 2 - Receipts
+// ===============================
+const receipts = workbook.addWorksheet(t('excel_sheet2'));
+let rowNumber = 1;
+
+for (let i = 0; i < expenseImages.length; i++) {
+    if (!expenseImages[i]) continue;
+
+    // Add heading
+    receipts.getCell(`A${rowNumber}`).value =
+        `${t('excel_receipt')} ${i + 1} - ${expenses[i].desc}`;
+
+    rowNumber += 1;
+
+    // Load image to get original dimensions
+    const img = new Image();
+    img.src = expenseImages[i];
+
+    await new Promise(resolve => {
+        img.onload = resolve;
+    });
+
+    let width = img.width;
+    let height = img.height;
+
+    // Maximum size for Excel image
+    const maxWidth = 400;
+    const maxHeight = 500;
+
+    // Keep aspect ratio (same logic as PDF)
+    const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+
+    width *= scale;
+    height *= scale;
+
+    // Add image to workbook
+    const imageId = workbook.addImage({
+        base64: expenseImages[i],
+        extension: "jpeg"
+    });
+
+    // Insert image with preserved ratio
+    receipts.addImage(imageId, {
+        tl: { col: 0, row: rowNumber - 1 },
+        ext: {
+            width: width,
+            height: height
+        }
+    });
+
+    // Increase rows according to image height
+    rowNumber += Math.ceil(height / 20) + 2;
+}
+
+    // ===============================
+    // Download Excel File
+    // ===============================
+   const buffer = await workbook.xlsx.writeBuffer();
+
+const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+});
+
+const userName = document.getElementById("userName").value.trim().replace(/\s+/g, "_");
+const tripNum = document.getElementById("trip").value.trim().replace(/\s+/g, "_");
+
+const filename = `${userName}_Trip_${tripNum}_Expense_Report.xlsx`;
+
+const url = URL.createObjectURL(blob);
+
+const a = document.createElement("a");
+a.href = url;
+a.download = filename;
+document.body.appendChild(a);
+a.click();
+a.remove();
+
+setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ==========================================
+// DATE/TIME RESTRICTION SCRIPT
+// ==========================================
+(function() {
+    function getCurrentMax(inputType) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        
+        if (inputType === 'datetime-local') return `${year}-${month}-${day}T${hours}:${minutes}`;
+        return `${year}-${month}-${day}`;
+    }
+
+    function applyDateRestriction() {
+        const dateInputs = document.querySelectorAll('input[type="date"], input[type="datetime-local"]');
+        dateInputs.forEach(input => {
+            if (!input.hasAttribute('data-restricted')) {
+                input.setAttribute('max', getCurrentMax(input.type));
+                input.setAttribute('data-restricted', 'true');
+                
+                input.addEventListener('change', function(e) {
+                    const currentMax = getCurrentMax(e.target.type);
+                    if (e.target.value > currentMax) {
+                        alert(t('alert_future_dates'));
+                        e.target.value = currentMax;
+                    }
+                });
+                
+                input.addEventListener('focus', function(e) {
+                    e.target.setAttribute('max', getCurrentMax(e.target.type));
+                });
+            }
+        });
+    }
+
+    applyDateRestriction();
+    document.addEventListener("DOMContentLoaded", applyDateRestriction);
+    
+    let attempts = 0;
+    const interval = setInterval(() => {
+        applyDateRestriction();
+        attempts++;
+        if (attempts > 15) clearInterval(interval);
+    }, 200);
+})();
+document.getElementById("userName").addEventListener("input", function() {
+    const cookie = document.getElementById("cookieEmoji");
+
+    if (this.value.toLowerCase().includes("cookie")) {
+        cookie.textContent = " 🍪";
+    } else {
+        cookie.textContent = "";
+    }
+});
+</script>
+
+</body>
+</html>
